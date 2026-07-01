@@ -1,0 +1,228 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: flights
+    description: Live flight data from OpenSky Network
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /flights:
+    get:
+      operationId: getFlights
+      tags: [flights]
+      summary: Get all live flights
+      description: Returns current aircraft positions from OpenSky Network. Results are cached for ~8 seconds server-side.
+      responses:
+        "200":
+          description: Live flight list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlightList"
+        "502":
+          description: OpenSky API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /flights/stats:
+    get:
+      operationId: getFlightStats
+      tags: [flights]
+      summary: Aggregated flight statistics
+      description: Returns country counts, altitude buckets, speed distribution, and emergency list derived from the current snapshot.
+      responses:
+        "200":
+          description: Flight statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlightStats"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Flight:
+      type: object
+      required:
+        - icao24
+        - origin_country
+        - longitude
+        - latitude
+        - on_ground
+        - emergency
+      properties:
+        icao24:
+          type: string
+          description: ICAO 24-bit address
+        callsign:
+          type: ["string", "null"]
+          description: Flight callsign
+        origin_country:
+          type: string
+        longitude:
+          type: number
+        latitude:
+          type: number
+        altitude:
+          type: ["number", "null"]
+          description: Barometric altitude in metres
+        on_ground:
+          type: boolean
+        velocity:
+          type: ["number", "null"]
+          description: Speed in m/s
+        heading:
+          type: ["number", "null"]
+          description: True track in degrees (0=N, 90=E)
+        squawk:
+          type: ["string", "null"]
+        emergency:
+          type: boolean
+          description: True when squawk is 7500, 7600, or 7700
+
+    FlightList:
+      type: object
+      required:
+        - flights
+        - count
+      properties:
+        flights:
+          type: array
+          items:
+            $ref: "#/components/schemas/Flight"
+        count:
+          type: integer
+        cached:
+          type: boolean
+        stale:
+          type: boolean
+
+    CountryCount:
+      type: object
+      required:
+        - country
+        - count
+      properties:
+        country:
+          type: string
+        count:
+          type: integer
+
+    AltitudeBucket:
+      type: object
+      required:
+        - label
+        - count
+        - color
+      properties:
+        label:
+          type: string
+        count:
+          type: integer
+        color:
+          type: string
+
+    EmergencyFlight:
+      type: object
+      required:
+        - icao24
+        - squawk
+        - origin_country
+        - latitude
+        - longitude
+        - emergency
+      properties:
+        icao24:
+          type: string
+        callsign:
+          type: ["string", "null"]
+        squawk:
+          type: string
+        origin_country:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        altitude:
+          type: ["number", "null"]
+        velocity:
+          type: ["number", "null"]
+        emergency:
+          type: boolean
+
+    FlightStats:
+      type: object
+      required:
+        - total
+        - airborne
+        - on_ground
+        - emergency_count
+        - top_countries
+        - altitude_buckets
+        - cached
+      properties:
+        total:
+          type: integer
+        airborne:
+          type: integer
+        on_ground:
+          type: integer
+        emergency_count:
+          type: integer
+        top_countries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountryCount"
+        altitude_buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AltitudeBucket"
+        emergencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmergencyFlight"
+        cached:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        flights:
+          type: array
+          items:
+            $ref: "#/components/schemas/Flight"
